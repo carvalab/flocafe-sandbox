@@ -1,0 +1,51 @@
+name: microvm
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: microvm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Unlock /dev/kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          [ -r /dev/kvm ] && [ -w /dev/kvm ]
+
+      - name: Install microsandbox
+        run: |
+          curl -fsSL https://install.microsandbox.dev -o /tmp/msb.sh
+          sh /tmp/msb.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/msb" --version
+          "$HOME/.local/bin/msb" self doctor
+
+      - name: Build and load the image
+        run: |
+          docker build -t flocafe-sandbox:3 .
+          docker save flocafe-sandbox:3 | "$HOME/.local/bin/msb" load
+
+      - name: Boot one microVM
+        run: |
+          set -e
+          msb="$HOME/.local/bin/msb"
+          "$msb" create -q -n demo -c 2 -m 4G --max-duration 20m flocafe-sandbox:3
+          "$msb" exec demo -- uname -a
+          "$msb" exec demo -- build-flocafe.sh 3.13.0
+          "$msb" exec demo -- start-flocafe.sh
+          "$msb" exec demo -- start-browser.sh
+          "$msb" rm -f demo
+          test "$("$msb" ls --format json)" = "[]"
