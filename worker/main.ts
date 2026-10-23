@@ -7,6 +7,8 @@ const log = (message: string, fields: Record<string, unknown> = {}) => console.l
 const ticket = process.env.CONTROL_TICKET;
 const token = process.env.WORKER_TOKEN;
 if (!ticket || !token) throw new Error("set CONTROL_TICKET and WORKER_TOKEN");
+delete process.env.WORKER_TOKEN;
+delete process.env.CONTROL_TICKET;
 
 const sandboxes = new Sandboxes();
 const endpoint = await bindEndpoint();

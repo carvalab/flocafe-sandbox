@@ -35,3 +35,10 @@ npm ci
 sudo install -d -o "$USER" /work
 CONTROL_TICKET=<ticket from the control center's /api/status> WORKER_TOKEN=<token> node worker/main.ts
 ```
+
+## What commands can see
+
+Everything the worker starts (commands from the control center, the FloCafe build, the app, Chrome) gets a clean environment: every variable whose name looks like a secret (`TOKEN`, `SECRET`, `PASSWORD`, `TICKET`, `CREDENTIAL`, `API_KEY`, `..._KEY`) is removed (`cleanEnv` in `worker/sandboxes.ts`), and the worker deletes `WORKER_TOKEN` and `CONTROL_TICKET` from its own environment after reading them. So `env`, `printenv` and `echo $WORKER_TOKEN` show nothing.
+
+This is not a wall. The worker and the commands run as the same user, and the runner's initial environment block of the worker is still readable at `/proc/<worker pid>/environ`. The control center flags a command that reads it. The stronger fixes, if the investigator ever gets more power: run commands as another user, or replace the shared `WORKER_TOKEN` with the job's own short-lived GitHub token.
+

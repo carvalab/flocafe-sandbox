@@ -9,10 +9,16 @@ const IDLE_MS = Number(process.env.IDLE_MS ?? 15 * 60_000);
 type ExecResult = { code: number; stdout: string; stderr: string; ms: number };
 export type Session = { id: string; ref: string; commit: string; cdpPort: number; startedAt: string; note?: string };
 
+const SECRET_NAME = /TOKEN|SECRET|PASSW|TICKET|CREDENTIAL|PRIVATE|API_?KEY|(^|_)KEY$/i;
+
+export function cleanEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !SECRET_NAME.test(name)));
+}
+
 function run(file: string, args: string[], timeoutMs = 10 * 60_000): Promise<ExecResult> {
   const started = Date.now();
   return new Promise((resolve) => {
-    execFile(file, args, { timeout: timeoutMs, maxBuffer: MAX_OUTPUT * 2 }, (error, stdout, stderr) => {
+    execFile(file, args, { timeout: timeoutMs, maxBuffer: MAX_OUTPUT * 2, env: cleanEnv() }, (error, stdout, stderr) => {
       const code = error ? (typeof error.code === "number" ? error.code : 1) : 0;
       resolve({ code, stdout: stdout.slice(-MAX_OUTPUT), stderr: stderr.slice(-MAX_OUTPUT), ms: Date.now() - started });
     });
