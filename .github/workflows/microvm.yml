@@ -33,10 +33,19 @@ jobs:
           "$HOME/.local/bin/msb" --version
           "$HOME/.local/bin/msb" self doctor
 
+      - uses: docker/setup-buildx-action@v4
+
       - name: Build and load the image
-        run: |
-          docker build -t flocafe-sandbox:3 .
-          docker save flocafe-sandbox:3 | "$HOME/.local/bin/msb" load
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: flocafe-sandbox:3
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Load the image into microsandbox
+        run: docker save flocafe-sandbox:3 | "$HOME/.local/bin/msb" load
 
       - name: Boot one microVM
         run: |
