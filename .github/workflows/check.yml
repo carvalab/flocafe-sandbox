@@ -1,0 +1,53 @@
+name: check
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # The built image, not the build layers. A repeat run restores it and
+      # skips the build; the key changes when the Dockerfile or the scripts do,
+      # which is also how a new Playwright version gets picked up.
+      - name: Restore the saved image
+        id: image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/flocafe-sandbox.tar
+          key: image-${{ hashFiles('Dockerfile', 'bin/**') }}
+
+      - name: Build the image
+        if: steps.image.outputs.cache-hit != 'true'
+        run: |
+          docker build -t flocafe-sandbox:3 .
+          docker save flocafe-sandbox:3 -o /tmp/flocafe-sandbox.tar
+
+      - name: Load the image
+        run: docker load -i /tmp/flocafe-sandbox.tar
+
+      - name: Build FloCafe and check it serves
+        run: |
+          set -e
+          docker rm -f check >/dev/null 2>&1 || true
+          docker run -d --name check flocafe-sandbox:3 sleep infinity
+          docker exec check build-flocafe.sh 3.13.0
+          docker exec -d check start-flocafe.sh
+          for i in $(seq 1 60); do
+            code=$(docker exec check curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/ || true)
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          [ "$code" = "200" ]
+          docker rm -f check >/dev/null
