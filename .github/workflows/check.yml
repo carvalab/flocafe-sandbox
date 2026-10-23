@@ -18,44 +18,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The built image, not the build layers. A repeat run restores it and
-      # skips the build; the key changes when the Dockerfile or the scripts do,
-      # which is also how a new Playwright version gets picked up.
-      - name: Restore the saved image
-        id: image
-        uses: actions/cache@v4
+      - uses: actions/setup-node@v7
         with:
-          path: /tmp/flocafe-sandbox.tar
-          key: image-${{ hashFiles('Dockerfile', 'bin/**') }}
+          node-version: 24
 
-      - name: Build the image
-        if: steps.image.outputs.cache-hit != 'true'
-        run: |
-          docker build -t flocafe-sandbox:3 .
-          docker save flocafe-sandbox:3 -o /tmp/flocafe-sandbox.tar
-
-      - name: Load the image
-        run: docker load -i /tmp/flocafe-sandbox.tar
-
+      # The runner already has Node, git and build tools, so the check runs on
+      # it directly. The image is what the notebook worker runs, not CI.
       - name: Build FloCafe and check it serves
         run: |
           set -e
-          docker rm -f check >/dev/null 2>&1 || true
-          docker run -d --name check flocafe-sandbox:3 sleep infinity
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential python3 >/dev/null
+          sudo install -d -o "$USER" /opt/flocafe-sandbox /work
+          cp bin/* /opt/flocafe-sandbox/
+          chmod +x /opt/flocafe-sandbox/*.sh
+          export PATH="/opt/flocafe-sandbox:$PATH"
           check() {
-            docker exec check sh -c 'pkill -f "node (scripts|tests)/" || true'
-            docker exec check build-flocafe.sh "$1"
-            docker exec -d check start-flocafe.sh
+            pkill -f "node (scripts|tests)/" || true
+            build-flocafe.sh "$1"
+            setsid start-flocafe.sh >/dev/null 2>&1 < /dev/null &
             code=""
             for i in $(seq 1 90); do
-              code=$(docker exec check curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/ || true)
-              [ "$code" = "200" ] && return 0
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/ || true)
+              [ "$code" = "200" ] && { echo "$1 served"; return 0; }
               sleep 1
             done
             echo "$1 answered $code" >&2
-            docker exec check tail -20 /tmp/demo-server.log >&2 || true
+            tail -20 /tmp/demo-server.log >&2 || true
             return 1
           }
           check 3.13.0
           check main
-          docker rm -f check >/dev/null
