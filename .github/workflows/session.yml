@@ -1,0 +1,34 @@
+name: session
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket:
+        description: The control center's iroh ticket (public; it holds its address, not a key)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  runner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: sudo install -d -o "$USER" /work
+
+      # Serves FloCafe sessions to the control center until it is stopped,
+      # the connection drops, or 15 minutes pass with nothing to do.
+      - name: Worker
+        run: node worker/main.ts
+        env:
+          CONTROL_TICKET: ${{ inputs.ticket }}
+          WORKER_TOKEN: ${{ secrets.WORKER_TOKEN }}

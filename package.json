@@ -1,0 +1,15 @@
+{
+  "name": "flocafe-sandbox-worker",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node worker/main.ts",
+    "test": "node --test worker/*.test.ts"
+  },
+  "dependencies": {
+    "@number0/iroh": "1.1.0"
+  }
+}

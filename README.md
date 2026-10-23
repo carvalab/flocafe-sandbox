@@ -1,36 +1,37 @@
 # flocafe-sandbox
 
-The container image used to run [FloCafe](https://github.com/FreeOpenSourcePOS/FloCafe) for reproduction. It holds a browser and the tools to build one FloCafe version. It holds no accounts, no tokens and no data.
+Runs [FloCafe](https://github.com/FreeOpenSourcePOS/FloCafe) for bug reproduction on GitHub's hosted runners. The FloCafe support bot's control center starts one `session` job per sandbox; the job builds the asked FloCafe version, starts it with a headless Chrome, and lets the control center drive both over [iroh](https://iroh.computer). No image: the runner already has Node, git, the build tools and Chrome.
 
-## Build
+The repo holds no accounts and no data. Its one secret, `WORKER_TOKEN`, proves a runner to the control center; pull requests from forks cannot read it, and only people with write access can start a session.
 
-```bash
-docker build -t flocafe-sandbox:3 .
-```
+## How a session runs
 
-## Run one version
+1. The control center starts `session.yml` with `workflow_dispatch`, passing its iroh ticket.
+2. `worker/main.ts` makes a fresh iroh key, connects to the control center and says hello with `WORKER_TOKEN`.
+3. For each `start(ref)` it runs `bin/build-flocafe.sh` (about 85 s), `bin/start-flocafe.sh` (port 3101) and `bin/start-browser.sh` (CDP on 9222). A start for another ref rebuilds in place on the same runner; the same ref again reuses the build.
+4. The control center runs commands, reads files and drives Chrome over CDP through the worker.
+5. The job ends when the connection drops or after 15 minutes with no session. A session lasts at most an hour.
 
-`REF` is a branch or tag of `FreeOpenSourcePOS/FloCafe`, for example `3.13.0`.
-
-```bash
-docker run -d --name demo -p 127.0.0.1:9222:9222 flocafe-sandbox:3 sleep infinity
-docker exec demo build-flocafe.sh "$REF"     # clones, installs, builds; about 70 s
-docker exec demo start-flocafe.sh            # serves on 127.0.0.1:3101 inside the container
-docker exec demo start-browser.sh            # headless Chromium, CDP on 127.0.0.1:9222
-docker rm -f demo
-```
-
-## What is inside
+## Files
 
 | File | Does |
 |---|---|
-| `Dockerfile` | `mcr.microsoft.com/playwright` plus `build-essential` and `python3` (better-sqlite3 compiles from source) |
-| `bin/build-flocafe.sh` | Shallow-clones one ref and builds the frontend and backend |
+| `worker/main.ts` | The iroh worker: hello, then `start`, `exec`, `readFile`, `stop` and the CDP stream |
+| `worker/sandboxes.ts` | Builds, starts and stops one FloCafe version at a time |
+| `bin/build-flocafe.sh` | Shallow-clones one ref into `/work/flocafe` and builds the frontend and backend |
 | `bin/start-flocafe.sh` | Starts that version's demo server on port 3101 |
-| `bin/start-browser.sh` | Starts headless Chromium |
+| `bin/start-browser.sh` | Starts headless Chrome and the CDP proxy |
 | `bin/cdp-proxy.cjs` | Forwards `0.0.0.0:9222` to Chrome, which only listens on `127.0.0.1` |
 | `bin/fake-printer.cjs` | Listens on port 9100 and writes whatever it receives to `/tmp` |
 
 ## Check
 
-`.github/workflows/check.yml` builds the image on every push and runs FloCafe `3.13.0` and then `main` in a container, confirming each one serves. The built image is cached, so a repeat run skips the build. The job needs no secrets.
+`.github/workflows/check.yml` runs the worker's tests, then builds FloCafe `3.13.0` and `main` on the runner and confirms each serves, on every push.
+
+## Run it on your machine (development)
+
+```bash
+npm ci
+sudo install -d -o "$USER" /work
+CONTROL_TICKET=<ticket from the control center's /api/status> WORKER_TOKEN=<token> node worker/main.ts
+```

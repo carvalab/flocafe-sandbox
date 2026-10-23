@@ -22,15 +22,13 @@ jobs:
         with:
           node-version: 24
 
-      # The runner already has Node, git and build tools, so the check runs on
-      # it directly. The image is what the notebook worker runs, not CI.
+      - run: npm ci --no-audit --no-fund && npm test
+
       - name: Build FloCafe and check it serves
         run: |
           set -e
-          sudo install -d -o "$USER" /opt/flocafe-sandbox /work
-          cp bin/* /opt/flocafe-sandbox/
-          chmod +x /opt/flocafe-sandbox/*.sh
-          export PATH="/opt/flocafe-sandbox:$PATH"
+          sudo install -d -o "$USER" /work
+          export PATH="$PWD/bin:$PATH"
           check() {
             pkill -f "node (scripts|tests)/" || true
             build-flocafe.sh "$1"
