@@ -2,6 +2,7 @@
 set -e
 REF="$1"
 DIR=/work/flocafe
+rm -rf "$DIR"
 git clone -q --depth 1 --branch "$REF" https://github.com/FreeOpenSourcePOS/FloCafe "$DIR"
 cd "$DIR"
 git rev-parse HEAD > /work/flocafe.commit
