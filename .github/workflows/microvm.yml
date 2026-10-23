@@ -33,19 +33,26 @@ jobs:
           "$HOME/.local/bin/msb" --version
           "$HOME/.local/bin/msb" self doctor
 
-      - uses: docker/setup-buildx-action@v4
-
-      - name: Build and load the image
-        uses: docker/build-push-action@v7
+      # The built image, not the build layers. A repeat run restores it and
+      # skips the build; the key changes when the Dockerfile or the scripts do,
+      # which is also how a new Playwright version gets picked up.
+      - name: Restore the saved image
+        id: image
+        uses: actions/cache@v4
         with:
-          context: .
-          load: true
-          tags: flocafe-sandbox:3
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          path: /tmp/flocafe-sandbox.tar
+          key: image-${{ hashFiles('Dockerfile', 'bin/**') }}
+
+      - name: Build the image
+        if: steps.image.outputs.cache-hit != 'true'
+        run: |
+          docker build -t flocafe-sandbox:3 .
+          docker save flocafe-sandbox:3 -o /tmp/flocafe-sandbox.tar
 
       - name: Load the image into microsandbox
-        run: docker save flocafe-sandbox:3 | "$HOME/.local/bin/msb" load
+        run: |
+          docker load -i /tmp/flocafe-sandbox.tar
+          docker save flocafe-sandbox:3 | "$HOME/.local/bin/msb" load
 
       - name: Boot one microVM
         run: |
