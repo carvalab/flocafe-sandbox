@@ -1,14 +1,11 @@
 # flocafe-sandbox
 
-The microVM image used to run [FloCafe](https://github.com/FreeOpenSourcePOS/FloCafe) for reproduction. It holds a browser and the tools to build one FloCafe version. It holds no accounts, no tokens and no data.
-
-Built on [microsandbox](https://microsandbox.dev) (`msb`), which runs each sandbox as its own small virtual machine on KVM.
+The container image used to run [FloCafe](https://github.com/FreeOpenSourcePOS/FloCafe) for reproduction. It holds a browser and the tools to build one FloCafe version. It holds no accounts, no tokens and no data.
 
 ## Build
 
 ```bash
 docker build -t flocafe-sandbox:3 .
-docker save flocafe-sandbox:3 | msb load
 ```
 
 ## Run one version
@@ -16,11 +13,11 @@ docker save flocafe-sandbox:3 | msb load
 `REF` is a branch or tag of `FreeOpenSourcePOS/FloCafe`, for example `3.13.0`.
 
 ```bash
-msb create -n demo -c 4 -m 6G flocafe-sandbox:3
-msb exec demo -- build-flocafe.sh "$REF"     # clones, installs, builds; about 70 s
-msb exec demo -- start-flocafe.sh            # serves on 127.0.0.1:3101 inside the VM
-msb exec demo -- start-browser.sh            # headless Chromium, CDP on 127.0.0.1:9222
-msb rm -f demo
+docker run -d --name demo -p 127.0.0.1:9222:9222 flocafe-sandbox:3 sleep infinity
+docker exec demo build-flocafe.sh "$REF"     # clones, installs, builds; about 70 s
+docker exec demo start-flocafe.sh            # serves on 127.0.0.1:3101 inside the container
+docker exec demo start-browser.sh            # headless Chromium, CDP on 127.0.0.1:9222
+docker rm -f demo
 ```
 
 ## What is inside
@@ -36,4 +33,4 @@ msb rm -f demo
 
 ## Check
 
-`.github/workflows/microvm.yml` builds the image and boots one microVM on every push. GitHub's Ubuntu runners expose KVM, so the job needs no extra hardware and no secrets.
+`.github/workflows/check.yml` builds the image on every push and runs FloCafe `3.13.0` and then `main` in a container, confirming each one serves. The built image is cached, so a repeat run skips the build. The job needs no secrets.
