@@ -42,12 +42,20 @@ jobs:
           set -e
           docker rm -f check >/dev/null 2>&1 || true
           docker run -d --name check flocafe-sandbox:3 sleep infinity
-          docker exec check build-flocafe.sh 3.13.0
-          docker exec -d check start-flocafe.sh
-          for i in $(seq 1 60); do
-            code=$(docker exec check curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/ || true)
-            [ "$code" = "200" ] && break
-            sleep 1
-          done
-          [ "$code" = "200" ]
+          check() {
+            docker exec check sh -c 'pkill -f "node (scripts|tests)/" || true'
+            docker exec check build-flocafe.sh "$1"
+            docker exec -d check start-flocafe.sh
+            code=""
+            for i in $(seq 1 90); do
+              code=$(docker exec check curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/ || true)
+              [ "$code" = "200" ] && return 0
+              sleep 1
+            done
+            echo "$1 answered $code" >&2
+            docker exec check tail -20 /tmp/demo-server.log >&2 || true
+            return 1
+          }
+          check 3.13.0
+          check main
           docker rm -f check >/dev/null
