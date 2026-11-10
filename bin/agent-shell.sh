@@ -94,7 +94,8 @@ cp "$SSHD_DIR/ssh_host_ed25519_key.pub" "$DIR/host_key.pub"
 
 # 3. The full clone the agent works in, with every tag, owned by agent.
 if [ ! -d "$REPO/.git" ]; then
-  sudo -H -u agent git clone --quiet https://github.com/FreeOpenSourcePOS/FloCafe "$REPO"
+  # -C because git reads its working directory first, and agent cannot enter the runner's workspace.
+  sudo -H -u agent git -C "$AGENT_HOME" clone --quiet https://github.com/FreeOpenSourcePOS/FloCafe "$REPO"
 fi
 sudo -H -u agent git -C "$REPO" fetch --quiet --tags --prune origin
 sudo chown -R agent:agent "$REPO"
