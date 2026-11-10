@@ -39,6 +39,8 @@ chmod 700 "$DIR"
 if ! id agent >/dev/null 2>&1; then
   sudo useradd --create-home --shell /bin/bash --user-group agent
 fi
+# useradd leaves the account locked ("!"), and sshd without PAM refuses a key for a locked account; "*" is no password, not locked.
+sudo usermod -p '*' agent
 sudo install -d -o agent -g agent -m 0700 "$AGENT_HOME/.ssh"
 # Root owns the directory and the file, so agent can read them but cannot add a key of its own.
 printf '%s\n' "$KEY" | sudo tee "$AGENT_HOME/.ssh/authorized_keys" >/dev/null
