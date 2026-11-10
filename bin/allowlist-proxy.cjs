@@ -44,7 +44,8 @@ server.on("connect", (request, socket, head) => {
   // A client that hangs up mid-CONNECT must not take the proxy down.
   socket.on("error", () => socket.destroy());
   const [host, port = "443"] = request.url.split(":");
-  if (!allowed(host)) {
+  // Only TLS on 443: git, npm and GitHub need nothing else, and another port of an allowed host is a way around the list.
+  if (!allowed(host) || port !== "443") {
     log(host, "deny");
     socket.end(`HTTP/1.1 403 Forbidden\r\n\r\n${deny("").body}`);
     return;
