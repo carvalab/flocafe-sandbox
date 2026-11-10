@@ -2,6 +2,7 @@ import { connect as tcpConnect } from "node:net";
 import { EndpointTicket, type BiStream, type Connection } from "@number0/iroh";
 import { ALPN, bindEndpoint, decode, encode, pipeStreamAndSocket, readFrame, writeFrame, type Request, type Response, type SessionInfo } from "./link.ts";
 import { Sandboxes, type Session } from "./sandboxes.ts";
+import { shellResponse, stopWhenIdle } from "./shell.ts";
 
 const log = (message: string, fields: Record<string, unknown> = {}) => console.log(JSON.stringify({ at: new Date().toISOString(), message, ...fields }));
 const ticket = process.env.CONTROL_TICKET;
@@ -24,9 +25,9 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 setInterval(() => {
-  void sandboxes.sweep().then((expired) => {
+  void sandboxes.sweep().then(async (expired) => {
     if (expired.length) log("session reached its time limit", { expired });
-    if (sandboxes.idle()) void shutdown("idle");
+    if (await stopWhenIdle(sandboxes.idle())) void shutdown("idle");
   });
 }, 30_000);
 
@@ -43,6 +44,8 @@ async function handleRpc(request: Exclude<Request, { type: "cdp" }>): Promise<Re
       return { ok: true };
     case "list":
       return { ok: true, sessions: [...sandboxes.sessions.values()].map(info) };
+    case "shell":
+      return shellResponse();
   }
 }
 

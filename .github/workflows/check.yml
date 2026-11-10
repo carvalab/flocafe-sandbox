@@ -45,3 +45,23 @@ jobs:
           }
           check 3.13.0
           check main
+
+  # The same agent shell session.yml builds, with a key made in the job, then
+  # the red team script: what the agent must not reach, and what it must.
+  shell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up the agent shell with a throwaway key
+        run: |
+          ssh-keygen -q -t ed25519 -N '' -C throwaway -f "$RUNNER_TEMP/shell-key"
+          bin/agent-shell.sh "$(cat "$RUNNER_TEMP/shell-key.pub")"
+
+      - name: Red team the agent shell
+        run: bin/agent-shell-check.sh "$RUNNER_TEMP/shell-key"

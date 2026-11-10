@@ -7,14 +7,16 @@ const CHUNK = 64 * 1024;
 
 export type SessionInfo = { id: string; ref: string; commit: string; startedAt: string; note?: string };
 export type ExecOutput = { code: number; stdout: string; stderr: string; ms: number };
+export type ShellInfo = { ticket: string; hostKey: string; user: string; home: string; repo: string };
 export type Request =
   | { type: "rpc"; method: "start"; ref: string }
   | { type: "rpc"; method: "exec"; session: string; argv: string[]; timeoutMs?: number }
   | { type: "rpc"; method: "readFile"; session: string; path: string }
   | { type: "rpc"; method: "stop"; session: string }
   | { type: "rpc"; method: "list" }
+  | { type: "rpc"; method: "shell" }
   | { type: "cdp"; session: string };
-export type Response = { ok: true; session?: SessionInfo; sessions?: SessionInfo[]; output?: ExecOutput; file?: string } | { ok: false; error: string };
+export type Response = { ok: true; session?: SessionInfo; sessions?: SessionInfo[]; output?: ExecOutput; file?: string; shell?: ShellInfo } | { ok: false; error: string };
 
 export async function bindEndpoint(): Promise<Endpoint> {
   const builder = Endpoint.builder();
