@@ -13,7 +13,11 @@ BAD=0
 pass() { printf 'ok    %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1" >&2; BAD=1; }
 refused() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$name"; else pass "$name"; fi; }
-worked() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$name"; else fail "$name"; fi; }
+worked() {
+  local name="$1" output
+  shift
+  if output=$("$@" 2>&1); then pass "$name"; else fail "$name"; printf '%s\n' "$output" | tail -5 | sed 's/^/      /' >&2; fi
+}
 as_agent() { sudo -u agent env HOME=/home/agent "$@"; }
 login_agent() { sudo -u agent -i "$@"; }
 

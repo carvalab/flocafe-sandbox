@@ -41,6 +41,8 @@ const server = http.createServer((request, response) => {
 
 // TLS and git use CONNECT: the host check happens on the name before any byte flows.
 server.on("connect", (request, socket, head) => {
+  // A client that hangs up mid-CONNECT must not take the proxy down.
+  socket.on("error", () => socket.destroy());
   const [host, port = "443"] = request.url.split(":");
   if (!allowed(host)) {
     log(host, "deny");
@@ -55,7 +57,8 @@ server.on("connect", (request, socket, head) => {
     socket.pipe(upstream);
   });
   upstream.on("error", () => socket.destroy());
-  socket.on("error", () => upstream.destroy());
 });
+
+server.on("clientError", (_error, socket) => socket.destroy());
 
 server.listen(PORT, "127.0.0.1", () => console.log(`allowlist proxy on 127.0.0.1:${PORT}`));
