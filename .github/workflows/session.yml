@@ -6,6 +6,10 @@ on:
       ticket:
         description: The control center's iroh ticket (public; it holds its address, not a key)
         required: true
+      ssh_key:
+        description: The control center's OpenSSH public key for the agent shell (public, one line; empty leaves the job as it was)
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -24,6 +28,14 @@ jobs:
       - run: npm ci --no-audit --no-fund
 
       - run: sudo install -d -o "$USER" /work
+
+      # Gives the control center an SSH door into a user that holds none of the
+      # worker's secrets. Without ssh_key it is skipped and the job is as before.
+      - name: Agent shell
+        if: inputs.ssh_key != ''
+        env:
+          AGENT_SHELL_PUBKEY: ${{ inputs.ssh_key }}
+        run: bin/agent-shell.sh
 
       # Serves FloCafe sessions to the control center until it is stopped,
       # the connection drops, or 15 minutes pass with nothing to do.
