@@ -48,7 +48,7 @@ sudo chmod 0644 "$AGENT_HOME/.ssh/authorized_keys"
 
 # 2. sshd, with a host key made in this job, on loopback only.
 if ! command -v sshd >/dev/null 2>&1 || ! command -v rg >/dev/null 2>&1; then
-  sudo apt-get update -qq
+  sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::Retries=2 update -qq
   command -v sshd >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server
   command -v rg >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ripgrep
 fi
@@ -93,6 +93,7 @@ listening 22 || { echo "sshd did not listen on 127.0.0.1:22" >&2; exit 1; }
 cp "$SSHD_DIR/ssh_host_ed25519_key.pub" "$DIR/host_key.pub"
 
 # 3. The full clone the agent works in, with every tag, owned by agent.
+echo "agent shell: the sshd is up, cloning FloCafe"
 if [ ! -d "$REPO/.git" ]; then
   # -C because git reads its working directory first, and agent cannot enter the runner's workspace.
   sudo -H -u agent git -C "$AGENT_HOME" clone --quiet https://github.com/FreeOpenSourcePOS/FloCafe "$REPO"
@@ -100,6 +101,7 @@ fi
 sudo -H -u agent git -C "$REPO" fetch --quiet --tags --prune origin
 sudo chown -R agent:agent "$REPO"
 
+echo "agent shell: cloned, starting the tunnel"
 # 4. The tunnel, pinned by version and hash. Its stderr holds a secret key, so
 #    it goes to a 0600 file that is deleted as soon as the ticket is out of it.
 mkdir -p "$DIR/bin"
@@ -121,6 +123,7 @@ if ! [ -s "$DIR/dumbpipe.pid" ] || ! kill -0 "$(cat "$DIR/dumbpipe.pid")" 2>/dev
   rm -f "$DIR/ticket.log"
 fi
 
+echo "agent shell: the tunnel is up, starting the proxy and the egress rules"
 # 5. The allowlist proxy, then egress for uid agent: loopback, DNS, the proxy, nothing else.
 if ! ss -ltnH "sport = :$PROXY_PORT" | grep -q .; then
   AGENT_SHELL_PROXY_PORT=$PROXY_PORT nohup node "$HERE/allowlist-proxy.cjs" >>"$DIR/proxy.log" 2>&1 &
